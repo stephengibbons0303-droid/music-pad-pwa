@@ -1,4 +1,4 @@
-const CACHE_NAME = 'music-notepad-v3';
+const CACHE_NAME = 'music-notepad-v4';
 const urlsToCache = [
   './index.html',
   './manifest.json',

@@ -3,131 +3,275 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta name="theme-color" content="#4CAF50">
-    <title>Musical Notepad PWA</title>
+    <meta name="theme-color" content="#2196F3">
+    <title>MusicPad</title>
     <link rel="manifest" href="manifest.json">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&display=swap" rel="stylesheet">
 
     <script src="https://cdn.jsdelivr.net/npm/vexflow@4.2.5/build/cjs/vexflow.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
 
     <style>
-        /* --- GLOBAL RESETS --- */
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: sans-serif; user-select: none; }
-        body { display: flex; flex-direction: column; height: 100vh; overflow: hidden; background-color: #f4f4f9; }
-        button { cursor: pointer; border: none; border-radius: 8px; font-weight: bold; }
+        /* --- GLOBAL --- */
+        * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+        body { font-family: 'Nunito', sans-serif; display: flex; flex-direction: column; height: 100vh; overflow: hidden; background: #4BA3F5; }
+        button { cursor: pointer; border: none; font-family: 'Nunito', sans-serif; font-weight: 700; -webkit-tap-highlight-color: transparent; }
         .hidden { display: none !important; }
 
-        /* --- TOP ZONE: CANVAS & CONTROLS (40%) --- */
-        #top-zone { flex: 0 0 40%; display: flex; flex-direction: column; position: relative; background: #ffffff; border-bottom: 2px solid #ddd; }
-        #header-controls { display: flex; justify-content: center; gap: 10px; padding: 10px; background: #eaeaea; }
-        #header-controls button { padding: 10px 20px; font-size: 16px; background: #ddd; }
-        #btn-notebook { font-size: 24px; padding: 5px 15px; background: #fff !important; border: 1px solid #ccc; }
-        #vexflow-canvas { flex-grow: 1; width: 100%; display: flex; justify-content: center; overflow-x: auto; overflow-y: hidden; }
+        /* --- HEADER BAR --- */
+        #header-bar {
+            flex: 0 0 auto;
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 10px 20px;
+            background: linear-gradient(180deg, #42A5F5, #2196F3);
+        }
+        #header-left { display: flex; align-items: center; gap: 12px; }
+        #header-icon {
+            width: 40px; height: 40px; background: white; border-radius: 10px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 22px; box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+        }
+        #header-text h1 { font-size: 22px; font-weight: 900; color: white; line-height: 1.1; }
+        #header-text span { font-size: 12px; color: rgba(255,255,255,0.8); font-weight: 600; }
+
+        #header-actions { display: flex; gap: 10px; align-items: center; }
+        .hdr-btn {
+            height: 42px; border-radius: 21px; font-size: 14px; font-weight: 800;
+            display: flex; align-items: center; justify-content: center; gap: 6px;
+            padding: 0 16px; color: white;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.2);
+        }
+        #btn-songs { background: linear-gradient(135deg, #AB47BC, #7E57C2); }
+        #btn-play-header { background: linear-gradient(135deg, #EC407A, #E91E63); width: 48px; height: 48px; border-radius: 50%; padding: 0; font-size: 22px; }
+        #btn-new { background: rgba(255,255,255,0.2); width: 42px; padding: 0; font-size: 24px; }
+
+        /* --- NOTATION CARD --- */
+        #notation-area {
+            flex: 1 1 auto;
+            display: flex; flex-direction: column;
+            margin: 10px 16px 8px 16px;
+            background: white; border-radius: 18px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+            overflow: hidden; min-height: 0;
+        }
+        #vexflow-canvas {
+            flex-grow: 1; width: 100%;
+            display: flex; justify-content: center; align-items: center;
+            overflow-x: auto; overflow-y: hidden;
+            padding: 2px 0;
+        }
+        #notepad-strip {
+            flex: 0 0 auto; padding: 5px 16px;
+            background: #F8FAFC; border-top: 1px solid #EEF2F6;
+            font-size: 13px; color: #90A4AE; letter-spacing: 1px;
+            text-align: center; white-space: nowrap; overflow-x: auto;
+        }
 
         /* --- RADIAL MENU --- */
-        #radial-menu { position: fixed; width: 240px; height: 240px; transform: translate(-50%, -50%); z-index: 100; pointer-events: none; }
-        .radial-btn { position: absolute; width: 64px; height: 64px; background: #2196F3; color: white; border-radius: 50%; text-align: center; line-height: 64px; font-size: 18px; font-weight: bold; box-shadow: 0 4px 8px rgba(0,0,0,0.4); pointer-events: auto; -webkit-tap-highlight-color: transparent; }
-        .radial-btn:active { transform: scale(0.9); background: #1565C0; }
-        #rad-whole { top: 0; left: 88px; }
-        #rad-half { top: 88px; right: 0; }
-        #rad-quarter { bottom: 0; left: 88px; }
-        #rad-eighth { top: 88px; left: 0; }
-        #rad-delete { top: 0; left: 0; background: #f44336; font-size: 14px; }
-        #rad-center { top: 88px; left: 88px; background: #ff5722; font-size: 14px; }
+        #radial-menu {
+            position: fixed; width: 260px; height: 260px;
+            transform: translate(-50%, -50%);
+            z-index: 200; pointer-events: none;
+        }
+        @keyframes radialPop { 0% { transform: translate(-50%,-50%) scale(0.5); opacity:0; } 100% { transform: translate(-50%,-50%) scale(1); opacity:1; } }
+        #radial-menu:not(.hidden) { animation: radialPop 0.15s ease-out; }
+        .radial-btn {
+            position: absolute; width: 68px; height: 68px;
+            border-radius: 50%; color: white; font-weight: 800;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            font-size: 13px;
+            box-shadow: 0 4px 14px rgba(0,0,0,0.3);
+            pointer-events: auto; -webkit-tap-highlight-color: transparent;
+            transition: transform 0.1s;
+        }
+        .radial-btn:active { transform: scale(0.88); }
+        #rad-whole   { top: 0;    left: 96px;  background: linear-gradient(135deg, #9C27B0, #7B1FA2); }
+        #rad-half    { top: 96px; right: 0;     background: linear-gradient(135deg, #42A5F5, #1E88E5); }
+        #rad-quarter { bottom: 0; left: 96px;  background: linear-gradient(135deg, #FFA726, #FB8C00); }
+        #rad-eighth  { top: 96px; left: 0;      background: linear-gradient(135deg, #26A69A, #00897B); }
+        #rad-delete  { bottom: 0; left: 0;      background: linear-gradient(135deg, #EF5350, #E53935); }
+        #rad-center  { top: 96px; left: 96px;   background: linear-gradient(135deg, #78909C, #546E7A); width: 68px; height: 68px; }
+        .rad-symbol { font-size: 28px; line-height: 1; }
+        .rad-label { font-size: 10px; opacity: 0.85; margin-top: 1px; }
 
-        /* --- MIDDLE ZONE: NOTEPAD (8%) --- */
-        #middle-zone { flex: 0 0 8%; display: flex; align-items: center; justify-content: center; padding: 5px 10px; background: #e3f2fd; border-bottom: 2px solid #ddd; }
-        #notepad-input { width: 90%; height: 100%; font-size: 20px; padding: 5px 10px; border: 2px solid #ccc; border-radius: 8px; text-align: center; letter-spacing: 2px; }
+        /* --- MODE TOGGLE --- */
+        #mode-bar {
+            flex: 0 0 auto; display: flex; justify-content: center; align-items: center;
+            padding: 6px 16px; gap: 8px;
+        }
+        .mode-pill {
+            padding: 8px 24px; border-radius: 20px; font-size: 14px; font-weight: 800;
+            color: white; opacity: 0.7;
+            background: rgba(255,255,255,0.15);
+            transition: all 0.2s;
+        }
+        .mode-pill.active { opacity: 1; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
+        #toggle-letters.active { background: #00BCD4; }
+        #toggle-piano.active { background: #AB47BC; }
+        #toggle-labels {
+            padding: 8px 14px; border-radius: 20px; font-size: 12px; font-weight: 700;
+            background: rgba(255,255,255,0.15); color: white; opacity: 0.7;
+        }
 
-        /* --- BOTTOM ZONE: INPUT CONTROLS (52%) --- */
-        #bottom-zone { flex: 0 0 52%; display: flex; flex-direction: column; padding: 10px; }
-        #input-toggle { display: flex; justify-content: center; margin-bottom: 8px; gap: 10px; }
-        #input-toggle button { padding: 8px 24px; background: #ccc; font-size: 16px; }
-        #input-toggle button.active { background: #4CAF50; color: white; }
+        /* --- BOTTOM INPUT ZONE --- */
+        #bottom-zone {
+            flex: 0 0 auto; display: flex; flex-direction: column;
+            padding: 0 16px 14px 16px;
+        }
 
         /* Letter Mode */
-        #letter-mode { display: flex; flex-grow: 1; gap: 10px; }
-        #octave-controls { display: flex; flex-direction: column; justify-content: space-between; flex: 0 0 70px; }
-        #octave-controls button { flex: 1; margin: 3px 0; font-size: 22px; background: #bbb; }
-        #octave-display { text-align: center; font-size: 28px; font-weight: bold; line-height: 50px; }
-        #letter-buttons { display: flex; flex-grow: 1; gap: 6px; flex-wrap: wrap; }
-        .letter-btn { flex: 1 1 calc(14% - 6px); min-width: 60px; font-size: 32px; background: #4CAF50; color: white; border-radius: 12px; box-shadow: 0 6px #388E3C; display: flex; align-items: center; justify-content: center; }
-        .letter-btn:active { transform: translateY(4px); box-shadow: 0 2px #388E3C; }
-        .letter-btn.sharp-btn { background: #333; color: white; box-shadow: 0 6px #111; font-size: 24px; }
-        .letter-btn.sharp-btn:active { box-shadow: 0 2px #111; transform: translateY(4px); }
-        .letter-btn.flat-btn { background: #5C6BC0; color: white; box-shadow: 0 6px #3949AB; font-size: 24px; }
-        .letter-btn.flat-btn:active { box-shadow: 0 2px #3949AB; transform: translateY(4px); }
-        #accidental-controls { display: flex; flex-direction: column; justify-content: space-between; flex: 0 0 70px; gap: 5px; }
-        #accidental-controls button { flex: 1; font-size: 24px; border-radius: 8px; }
-        #btn-sharp { background: #333; color: white; }
-        #btn-flat { background: #5C6BC0; color: white; }
-        #btn-natural { background: #bbb; color: #333; }
-        #accidental-controls button.active { outline: 3px solid #FF9800; outline-offset: -3px; }
+        #letter-mode { display: flex; gap: 8px; height: 90px; }
+        #letter-buttons { display: flex; flex-grow: 1; gap: 6px; }
+        .letter-btn {
+            flex: 1; border-radius: 14px; font-size: 32px; font-weight: 900;
+            background: white; color: #37474F;
+            box-shadow: 0 4px 0 #CBD5E0, 0 2px 10px rgba(0,0,0,0.08);
+            display: flex; align-items: center; justify-content: center;
+            transition: all 0.08s;
+        }
+        .letter-btn:active, .letter-btn.pressed {
+            background: #00E5FF; color: white;
+            transform: translateY(4px); box-shadow: 0 0 0 #CBD5E0;
+        }
+
+        /* Octave + Accidentals column */
+        #right-controls {
+            display: flex; flex-direction: column; gap: 4px; flex: 0 0 auto;
+        }
+        #octave-row {
+            display: flex; align-items: center; gap: 4px; justify-content: center;
+        }
+        #octave-label { font-size: 11px; font-weight: 700; color: rgba(255,255,255,0.7); text-align: center; }
+        .oct-btn {
+            width: 52px; height: 40px; border-radius: 12px; font-size: 20px; font-weight: 800;
+            background: white; color: #37474F;
+            box-shadow: 0 3px 0 #CBD5E0;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .oct-btn:active { transform: translateY(3px); box-shadow: none; }
+        #octave-display { font-size: 22px; font-weight: 900; color: white; width: 28px; text-align: center; }
+
+        #accidental-row { display: flex; gap: 4px; justify-content: center; }
+        .acc-btn {
+            width: 40px; height: 36px; border-radius: 10px; font-size: 18px; font-weight: 800;
+            display: flex; align-items: center; justify-content: center;
+            transition: all 0.1s;
+        }
+        #btn-sharp   { background: #37474F; color: white; box-shadow: 0 3px 0 #263238; }
+        #btn-natural { background: #CFD8DC; color: #455A64; box-shadow: 0 3px 0 #B0BEC5; }
+        #btn-flat    { background: #5C6BC0; color: white; box-shadow: 0 3px 0 #3949AB; }
+        .acc-btn:active { transform: translateY(3px); box-shadow: none; }
+        .acc-btn.active { outline: 3px solid #FFD600; outline-offset: -2px; }
 
         /* Piano Mode */
-        #piano-mode { display: flex; flex-grow: 1; position: relative; background: #333; padding: 5px; border-radius: 8px; }
-        .white-key { flex: 1; background: white; margin: 1px; border: 1px solid #ccc; border-radius: 0 0 8px 8px; position: relative; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 10px; font-size: 12px; font-weight: bold; color: #888; }
-        .black-key { position: absolute; width: 3.5%; height: 60%; background: #222; border-radius: 0 0 6px 6px; z-index: 2; transform: translateX(-50%); display: flex; align-items: flex-end; justify-content: center; padding-bottom: 5px; color: white; font-size: 9px; }
-        .white-key:active { background: #e0e0e0; }
-        .black-key:active { background: #555; }
+        #piano-mode {
+            display: flex; height: 90px; position: relative;
+            background: #1A1A2E; padding: 5px; border-radius: 14px;
+            box-shadow: inset 0 2px 6px rgba(0,0,0,0.4);
+        }
+        .white-key {
+            flex: 1; background: linear-gradient(to bottom, #FEFEFE 80%, #E8E8E8);
+            margin: 1px; border: 1px solid #D5D5D5; border-radius: 0 0 10px 10px;
+            position: relative;
+            display: flex; align-items: flex-end; justify-content: center;
+            padding-bottom: 6px; font-size: 10px; font-weight: 700; color: #AAA;
+        }
+        .black-key {
+            position: absolute; width: 3.5%; height: 56%;
+            background: linear-gradient(to bottom, #2A2A2A, #0A0A0A);
+            border-radius: 0 0 5px 5px; z-index: 2; transform: translateX(-50%);
+            display: flex; align-items: flex-end; justify-content: center;
+            padding-bottom: 4px; color: #777; font-size: 8px; font-weight: 700;
+            box-shadow: 0 3px 5px rgba(0,0,0,0.5);
+        }
+        .white-key:active { background: linear-gradient(to bottom, #E0F7FA 80%, #B2EBF2); }
+        .black-key:active { background: linear-gradient(to bottom, #333, #1A1A1A); }
         .label-hidden .key-label { display: none; }
 
         /* --- NOTEBOOK OVERLAY --- */
-        #notebook-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0, 0, 0, 0.6); display: flex; justify-content: center; align-items: center; z-index: 1000; }
-        @keyframes openBook { 0% { transform: scale(0.5); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
-        #notebook-container { width: 80%; max-width: 800px; height: 60vh; min-height: 300px; background: #f4eade; border-radius: 15px; display: flex; position: relative; box-shadow: 0 20px 40px rgba(0,0,0,0.5); animation: openBook 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
-        #btn-close-notebook { position: absolute; top: -15px; right: -15px; width: 40px; height: 40px; border-radius: 50%; background: #ff5252; color: white; font-size: 20px; z-index: 10; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
-        .notebook-page { flex: 1; padding: 30px; display: flex; flex-direction: column; }
-        .left-page { border-right: 2px solid #ccc; box-shadow: inset -10px 0 20px rgba(0,0,0,0.05); }
-        .right-page { box-shadow: inset 10px 0 20px rgba(0,0,0,0.05); }
-        .notebook-page h2 { font-family: 'Comic Sans MS', cursive, sans-serif; margin-bottom: 15px; color: #333; }
-        .save-row { display: flex; gap: 10px; margin-top: 15px; }
-        #save-name-input { flex-grow: 1; padding: 10px; font-size: 18px; border: 2px solid #aaa; border-radius: 8px; user-select: text;}
-        #btn-do-save { background: #4CAF50; color: white; padding: 10px 20px; font-size: 18px; }
-        #load-list-container { flex-grow: 1; background: white; border: 2px solid #ccc; border-radius: 8px; margin-bottom: 15px; overflow-y: auto; }
+        #notebook-overlay {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(0,0,0,0.5); backdrop-filter: blur(4px);
+            display: flex; justify-content: center; align-items: center; z-index: 1000;
+        }
+        @keyframes slideUp { 0% { transform: translateY(30px); opacity: 0; } 100% { transform: translateY(0); opacity: 1; } }
+        #notebook-container {
+            width: 85%; max-width: 800px; height: 55vh; min-height: 280px;
+            background: #FAFAF5; border-radius: 20px;
+            display: flex; position: relative;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            animation: slideUp 0.3s ease-out;
+        }
+        #btn-close-notebook {
+            position: absolute; top: -12px; right: -12px; width: 36px; height: 36px;
+            border-radius: 50%; background: #EF5350; color: white; font-size: 18px;
+            z-index: 10; box-shadow: 0 3px 8px rgba(0,0,0,0.3);
+            display: flex; align-items: center; justify-content: center;
+        }
+        .notebook-page { flex: 1; padding: 24px; display: flex; flex-direction: column; }
+        .left-page { border-right: 1px solid #E0DCCE; }
+        .notebook-page h2 { font-size: 20px; margin-bottom: 12px; color: #37474F; }
+        .save-row { display: flex; gap: 8px; margin-top: 12px; }
+        #save-name-input {
+            flex-grow: 1; padding: 10px 14px; font-size: 16px; font-family: 'Nunito', sans-serif;
+            border: 2px solid #CBD5E0; border-radius: 10px; user-select: text;
+        }
+        #save-name-input:focus { outline: none; border-color: #42A5F5; }
+        #btn-do-save { background: #43A047; color: white; padding: 10px 20px; font-size: 16px; border-radius: 10px; }
+        #load-list-container { flex-grow: 1; background: white; border: 2px solid #E0E6ED; border-radius: 10px; margin-bottom: 12px; overflow-y: auto; }
         #saved-songs-list { list-style: none; padding: 0; margin: 0; }
-        #saved-songs-list li { padding: 15px; border-bottom: 1px solid #eee; font-size: 18px; cursor: pointer; }
-        #saved-songs-list li.selected { background: #bbdefb; font-weight: bold; }
-        #btn-do-load { background: #2196F3; color: white; padding: 15px; font-size: 18px; }
-        #btn-do-load:disabled { background: #ccc; cursor: not-allowed; }
+        #saved-songs-list li { padding: 14px 16px; border-bottom: 1px solid #F0F0F0; font-size: 16px; cursor: pointer; color: #37474F; }
+        #saved-songs-list li.selected { background: #E3F2FD; color: #1565C0; font-weight: 800; }
+        #btn-do-load { background: #1E88E5; color: white; padding: 12px; font-size: 16px; border-radius: 10px; }
+        #btn-do-load:disabled { background: #CFD8DC; cursor: not-allowed; color: #90A4AE; }
     </style>
 </head>
 <body>
 
-    <div id="top-zone">
-        <div id="header-controls">
-            <button id="btn-play">Play</button>
-            <button id="btn-clear">Clear</button>
-            <button id="btn-notebook" title="Save / Load">Notebook</button>
-        </div>
-        <div id="vexflow-canvas"></div>
-        <div id="radial-menu" class="hidden">
-            <div class="radial-btn" id="rad-whole">1</div>
-            <div class="radial-btn" id="rad-half">1/2</div>
-            <div class="radial-btn" id="rad-quarter">1/4</div>
-            <div class="radial-btn" id="rad-eighth">1/8</div>
-            <div class="radial-btn" id="rad-delete">DEL</div>
-            <div class="radial-btn" id="rad-center">Rest</div>
-        </div>
-    </div>
-
-    <div id="middle-zone">
-        <input type="text" id="notepad-input" placeholder="Tap notes to begin..." readonly>
-    </div>
-
-    <div id="bottom-zone">
-        <div id="input-toggle">
-            <button id="toggle-letters" class="active">Letters</button>
-            <button id="toggle-piano">Piano</button>
-            <button id="toggle-labels">Toggle Labels</button>
-        </div>
-
-        <div id="letter-mode">
-            <div id="octave-controls">
-                <button id="oct-up">&#9650;</button>
-                <div id="octave-display">4</div>
-                <button id="oct-down">&#9660;</button>
+    <!-- HEADER -->
+    <div id="header-bar">
+        <div id="header-left">
+            <div id="header-icon">&#9835;</div>
+            <div id="header-text">
+                <h1>MusicPad</h1>
+                <span>Musical Notepad</span>
             </div>
+        </div>
+        <div id="header-actions">
+            <button class="hdr-btn" id="btn-songs">My Songs</button>
+            <button class="hdr-btn" id="btn-play-header">&#9654;</button>
+            <button class="hdr-btn" id="btn-new">+</button>
+        </div>
+    </div>
+
+    <!-- NOTATION CARD -->
+    <div id="notation-area">
+        <div id="vexflow-canvas"></div>
+        <div id="notepad-strip">Tap notes to begin...</div>
+    </div>
+
+    <!-- RADIAL MENU -->
+    <div id="radial-menu" class="hidden">
+        <div class="radial-btn" id="rad-whole"><span class="rad-symbol">&#119133;</span><span class="rad-label">Whole</span></div>
+        <div class="radial-btn" id="rad-half"><span class="rad-symbol">&#119134;</span><span class="rad-label">Half</span></div>
+        <div class="radial-btn" id="rad-quarter"><span class="rad-symbol">&#9833;</span><span class="rad-label">Quarter</span></div>
+        <div class="radial-btn" id="rad-eighth"><span class="rad-symbol">&#9834;</span><span class="rad-label">Eighth</span></div>
+        <div class="radial-btn" id="rad-delete"><span class="rad-symbol">&#128465;</span><span class="rad-label">Delete</span></div>
+        <div class="radial-btn" id="rad-center"><span class="rad-symbol">&#119137;</span><span class="rad-label">Rest</span></div>
+    </div>
+
+    <!-- MODE TOGGLE -->
+    <div id="mode-bar">
+        <button class="mode-pill" id="toggle-piano">Piano Mode</button>
+        <button class="mode-pill active" id="toggle-letters">Letter Mode</button>
+        <button id="toggle-labels">Labels</button>
+    </div>
+
+    <!-- INPUT ZONE -->
+    <div id="bottom-zone">
+        <div id="letter-mode">
             <div id="letter-buttons">
                 <button class="letter-btn" data-note="C">C</button>
                 <button class="letter-btn" data-note="D">D</button>
@@ -137,27 +281,35 @@
                 <button class="letter-btn" data-note="A">A</button>
                 <button class="letter-btn" data-note="B">B</button>
             </div>
-            <div id="accidental-controls">
-                <button id="btn-sharp">#</button>
-                <button id="btn-natural">&#9838;</button>
-                <button id="btn-flat">b</button>
+            <div id="right-controls">
+                <div id="octave-label">Octave</div>
+                <div id="octave-row">
+                    <button class="oct-btn" id="oct-up">&#8593;</button>
+                    <div id="octave-display">4</div>
+                    <button class="oct-btn" id="oct-down">&#8595;</button>
+                </div>
+                <div id="accidental-row">
+                    <button class="acc-btn" id="btn-sharp">#</button>
+                    <button class="acc-btn" id="btn-natural">&#9838;</button>
+                    <button class="acc-btn" id="btn-flat">b</button>
+                </div>
             </div>
         </div>
-
         <div id="piano-mode" class="hidden"></div>
     </div>
 
+    <!-- NOTEBOOK OVERLAY -->
     <div id="notebook-overlay" class="hidden">
         <div id="notebook-container">
-            <button id="btn-close-notebook">&#10006;</button>
+            <button id="btn-close-notebook">&#10005;</button>
             <div class="notebook-page left-page">
                 <h2>Save Tune</h2>
-                <p>Give your music a name:</p>
+                <p style="color:#666; font-size:14px;">Give your music a name:</p>
                 <div class="save-row">
                     <input type="text" id="save-name-input" placeholder="My Song Name">
                     <button id="btn-do-save">Save</button>
                 </div>
-                <p id="save-message" class="hidden" style="color: green; margin-top: 10px; font-weight: bold;">Saved!</p>
+                <p id="save-message" class="hidden" style="color: #43A047; margin-top: 10px; font-weight: 800;">Saved!</p>
             </div>
             <div class="notebook-page right-page">
                 <h2>Load Tune</h2>
@@ -180,10 +332,9 @@
     <script>
         // --- 1. STATE & DOM ---
         let currentOctave = 4;
-        let currentAccidental = ''; // '', '#', or 'b'
+        let currentAccidental = '';
         let masterTune = [];
 
-        // Piano-like synth with warm tone and natural decay
         const synth = new Tone.Synth({
             oscillator: { type: 'triangle8' },
             envelope: { attack: 0.005, decay: 0.3, sustain: 0.2, release: 1.2 }
@@ -191,7 +342,7 @@
         const reverb = new Tone.Reverb({ decay: 1.5, wet: 0.2 }).toDestination();
         synth.connect(reverb);
 
-        const notepadInput = document.getElementById('notepad-input');
+        const notepadStrip = document.getElementById('notepad-strip');
         const viewLetterMode = document.getElementById('letter-mode');
         const viewPianoMode = document.getElementById('piano-mode');
         const octaveDisplay = document.getElementById('octave-display');
@@ -208,73 +359,69 @@
             document.getElementById('toggle-letters').classList.remove('active');
         });
 
-        // Toggle Labels
         document.getElementById('toggle-labels').addEventListener('click', () => {
             viewPianoMode.classList.toggle('label-hidden');
         });
 
-        // Octave Controls
+        // Octave
         document.getElementById('oct-up').addEventListener('click', () => { if(currentOctave < 6) { currentOctave++; octaveDisplay.textContent = currentOctave; } });
         document.getElementById('oct-down').addEventListener('click', () => { if(currentOctave > 2) { currentOctave--; octaveDisplay.textContent = currentOctave; } });
 
-        // Accidental Controls
+        // Accidentals
         document.getElementById('btn-sharp').addEventListener('click', () => setAccidental('#'));
         document.getElementById('btn-flat').addEventListener('click', () => setAccidental('b'));
         document.getElementById('btn-natural').addEventListener('click', () => setAccidental(''));
 
         function setAccidental(acc) {
             currentAccidental = acc;
-            document.querySelectorAll('#accidental-controls button').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.acc-btn').forEach(b => b.classList.remove('active'));
             if (acc === '#') document.getElementById('btn-sharp').classList.add('active');
             else if (acc === 'b') document.getElementById('btn-flat').classList.add('active');
             else document.getElementById('btn-natural').classList.add('active');
         }
         setAccidental('');
 
-        // Clear Canvas
-        document.getElementById('btn-clear').addEventListener('click', () => { masterTune = []; updateNotepad(); renderNotation(); });
+        // Clear / New
+        document.getElementById('btn-new').addEventListener('click', () => { masterTune = []; updateNotepad(); renderNotation(); });
 
         // --- 2. INPUT LOGIC ---
         function pushNote(pitchString, labelText) {
             masterTune.push({
                 id: `note-${Date.now()}-${masterTune.length}`,
-                pitch: pitchString,
-                duration: "q",
-                isRest: false,
-                label: labelText
+                pitch: pitchString, duration: "q", isRest: false, label: labelText
             });
-            updateNotepad();
-            renderNotation();
+            updateNotepad(); renderNotation();
         }
 
-        // Convert pitch string to Tone.js format: "c#/4" -> "C#4"
         function pitchToTone(pitchStr) {
             const parts = pitchStr.split('/');
             return parts[0].toUpperCase() + parts[1];
         }
 
-        // Letter Buttons
+        // Letter Buttons with press highlight
         document.querySelectorAll('.letter-btn').forEach(btn => {
             const handler = (e) => {
                 e.preventDefault();
                 const letter = btn.getAttribute('data-note');
-                const accidental = currentAccidental;
-                const fullNote = letter + accidental;
+                const fullNote = letter + currentAccidental;
                 const vexPitch = `${fullNote.toLowerCase()}/${currentOctave}`;
                 pushNote(vexPitch, fullNote);
                 synth.triggerAttackRelease(pitchToTone(vexPitch), "8n");
+                // Flash highlight
+                btn.classList.add('pressed');
+                setTimeout(() => btn.classList.remove('pressed'), 150);
             };
             btn.addEventListener('click', handler);
             btn.addEventListener('touchend', (e) => { e.preventDefault(); handler(e); });
         });
 
         function updateNotepad() {
-            notepadInput.value = masterTune.map(n => {
+            const text = masterTune.map(n => {
                 if (n.isRest) return '(Rest)';
-                const octave = n.pitch.split('/')[1];
-                return `${n.label}${octave}`;
-            }).join(' ');
-            notepadInput.scrollLeft = notepadInput.scrollWidth;
+                return `${n.label}${n.pitch.split('/')[1]}`;
+            }).join('  ');
+            notepadStrip.textContent = text || 'Tap notes to begin...';
+            notepadStrip.scrollLeft = notepadStrip.scrollWidth;
         }
 
         // --- 3. PIANO GENERATOR ---
@@ -285,7 +432,6 @@
             const startMidi = notesOrder.indexOf(startNote.pitch) + (startNote.octave * 12);
             const endMidi = notesOrder.indexOf(endNote.pitch) + (endNote.octave * 12);
 
-            // First pass: count white keys for positioning
             let totalWhiteKeys = 0;
             for (let i = startMidi; i <= endMidi; i++) {
                 if (!notesOrder[i % 12].includes('#')) totalWhiteKeys++;
@@ -306,9 +452,7 @@
                 key.appendChild(label);
 
                 if (isBlack) {
-                    // Position black key between the previous and next white keys
-                    const leftPercent = (whiteKeyIndex / totalWhiteKeys) * 100;
-                    key.style.left = `${leftPercent}%`;
+                    key.style.left = `${(whiteKeyIndex / totalWhiteKeys) * 100}%`;
                     container.appendChild(key);
                 } else {
                     container.appendChild(key);
@@ -332,21 +476,17 @@
         const canvasDiv = document.getElementById("vexflow-canvas");
         const renderer = new VF.Renderer(canvasDiv, VF.Renderer.Backends.SVG);
 
-        function getCanvasWidth() {
-            return Math.max(canvasDiv.clientWidth, 600);
-        }
+        function getCanvasWidth() { return Math.max(canvasDiv.clientWidth, 600); }
 
         function renderNotation() {
             const width = getCanvasWidth();
-            const staveWidth = width - 40;
-            // Grow canvas wider if many notes
             const minWidth = Math.max(width, masterTune.length * 50 + 100);
-            renderer.resize(minWidth, 220);
+            renderer.resize(minWidth, 190);
             const context = renderer.getContext();
             context.clear();
 
-            const topStaff = new VF.Stave(10, 10, minWidth - 30).addClef("treble");
-            const bottomStaff = new VF.Stave(10, 110, minWidth - 30).addClef("bass");
+            const topStaff = new VF.Stave(10, 2, minWidth - 30).addClef("treble");
+            const bottomStaff = new VF.Stave(10, 95, minWidth - 30).addClef("bass");
 
             topStaff.setContext(context).draw();
             bottomStaff.setContext(context).draw();
@@ -367,13 +507,9 @@
                     clef: isBass ? "bass" : "treble"
                 });
 
-                // Add accidental if the note has sharp or flat
                 const notePart = n.pitch.split('/')[0];
-                if (notePart.includes('#')) {
-                    vfNote.addModifier(new VF.Accidental('#'), 0);
-                } else if (notePart.includes('b') && notePart.length > 1) {
-                    vfNote.addModifier(new VF.Accidental('b'), 0);
-                }
+                if (notePart.includes('#')) vfNote.addModifier(new VF.Accidental('#'), 0);
+                else if (notePart.includes('b') && notePart.length > 1) vfNote.addModifier(new VF.Accidental('b'), 0);
 
                 if (!n.isRest) vfNote.addModifier(new VF.Annotation(n.label).setVerticalJustification(VF.Annotation.VerticalJustify.BOTTOM), 0);
                 vfNote.setAttribute("id", n.id);
@@ -396,24 +532,19 @@
             trebleVoice.draw(context, topStaff);
             bassVoice.draw(context, bottomStaff);
 
-            // Scroll to show latest notes
             canvasDiv.scrollLeft = canvasDiv.scrollWidth;
         }
         renderNotation();
-
-        // Re-render on resize
         window.addEventListener('resize', () => renderNotation());
 
-        // --- 5. RADIAL MENU INTERACTION ---
+        // --- 5. RADIAL MENU ---
         const radialMenu = document.getElementById('radial-menu');
         let selectedNoteId = null;
 
-        // Find which note was tapped by walking up the SVG element tree
         function findNoteId(el) {
             while (el && el !== canvasDiv) {
                 const id = el.getAttribute('id');
                 if (id && id.startsWith('note-')) return id;
-                // Also check VexFlow's data attributes
                 const classes = el.getAttribute('class') || '';
                 if (classes.includes('vf-stavenote')) {
                     const innerEl = el.querySelector('[id^="note-"]');
@@ -424,34 +555,26 @@
             return null;
         }
 
-        // Find closest note by horizontal position if direct hit missed
         function findNearestNote(clientX) {
             const svgEl = canvasDiv.querySelector('svg');
             if (!svgEl) return null;
             const noteEls = svgEl.querySelectorAll('[id^="note-"]');
-            let closest = null, closestDist = 40; // 40px tolerance
+            let closest = null, closestDist = 40;
             noteEls.forEach(el => {
                 const rect = el.getBoundingClientRect();
-                const centerX = rect.left + rect.width / 2;
-                const dist = Math.abs(clientX - centerX);
+                const dist = Math.abs(clientX - (rect.left + rect.width / 2));
                 if (dist < closestDist) { closestDist = dist; closest = el; }
             });
             return closest ? closest.getAttribute('id') : null;
         }
 
         const handleCanvasTap = (e) => {
-            // Don't interfere with radial menu buttons
             if (e.target.closest('#radial-menu')) return;
-
             const clientX = e.clientX ?? e.changedTouches?.[0]?.clientX ?? 0;
             const clientY = e.clientY ?? e.changedTouches?.[0]?.clientY ?? 0;
-
-            // Try direct hit first, then nearest note
             let noteId = findNoteId(e.target) || findNearestNote(clientX);
-
             if (noteId) {
-                e.preventDefault();
-                e.stopPropagation();
+                e.preventDefault(); e.stopPropagation();
                 selectedNoteId = noteId;
                 radialMenu.style.left = clientX + 'px';
                 radialMenu.style.top = clientY + 'px';
@@ -464,11 +587,9 @@
         canvasDiv.addEventListener('click', handleCanvasTap);
         canvasDiv.addEventListener('touchend', (e) => { handleCanvasTap(e); });
 
-        // Close radial menu when tapping elsewhere
         document.addEventListener('click', (e) => {
             if (!e.target.closest('#radial-menu') && !e.target.closest('#vexflow-canvas')) {
-                radialMenu.classList.add('hidden');
-                selectedNoteId = null;
+                radialMenu.classList.add('hidden'); selectedNoteId = null;
             }
         });
 
@@ -476,10 +597,8 @@
             if (!selectedNoteId) return;
             const idx = masterTune.findIndex(n => n.id === selectedNoteId);
             if (idx !== -1) modFunc(idx);
-            renderNotation();
-            updateNotepad();
-            radialMenu.classList.add('hidden');
-            selectedNoteId = null;
+            renderNotation(); updateNotepad();
+            radialMenu.classList.add('hidden'); selectedNoteId = null;
         };
 
         const addRadialHandler = (id, fn) => {
@@ -497,27 +616,21 @@
             if (!selectedNoteId) return;
             const idx = masterTune.findIndex(n => n.id === selectedNoteId);
             if (idx !== -1) masterTune.splice(idx, 1);
-            renderNotation();
-            updateNotepad();
-            radialMenu.classList.add('hidden');
-            selectedNoteId = null;
+            renderNotation(); updateNotepad();
+            radialMenu.classList.add('hidden'); selectedNoteId = null;
         });
 
         // --- 6. TONE.JS AUDIO ---
-        document.getElementById('btn-play').addEventListener('click', async () => {
+        document.getElementById('btn-play-header').addEventListener('click', async () => {
             await Tone.start();
             if (masterTune.length === 0) return;
             let timeAcc = Tone.now() + 0.1;
-
             masterTune.forEach(n => {
                 let dur = "4n", timeAdd = 0.5;
                 if(n.duration==='w'){ dur="1n"; timeAdd=2.0;}
                 if(n.duration==='h'){ dur="2n"; timeAdd=1.0;}
                 if(n.duration==='8'){ dur="8n"; timeAdd=0.25;}
-
-                if (!n.isRest) {
-                    synth.triggerAttackRelease(pitchToTone(n.pitch), dur, timeAcc);
-                }
+                if (!n.isRest) synth.triggerAttackRelease(pitchToTone(n.pitch), dur, timeAcc);
                 timeAcc += timeAdd;
             });
         });
@@ -529,7 +642,7 @@
         const loadBtn = document.getElementById('btn-do-load');
         let selectedSong = null;
 
-        document.getElementById('btn-notebook').addEventListener('click', () => { refreshList(); overlay.classList.remove('hidden'); });
+        document.getElementById('btn-songs').addEventListener('click', () => { refreshList(); overlay.classList.remove('hidden'); });
         document.getElementById('btn-close-notebook').addEventListener('click', () => { overlay.classList.add('hidden'); saveMsg.classList.add('hidden'); });
 
         document.getElementById('btn-do-save').addEventListener('click', () => {
