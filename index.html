@@ -335,12 +335,30 @@
         let currentAccidental = '';
         let masterTune = [];
 
-        const synth = new Tone.Synth({
+        // Real piano samples (Salamander Grand Piano)
+        let pianoReady = false;
+        const piano = new Tone.Sampler({
+            urls: {
+                A1: "A1.mp3", A2: "A2.mp3", A3: "A3.mp3", A4: "A4.mp3", A5: "A5.mp3", A6: "A6.mp3",
+                C2: "C2.mp3", C3: "C3.mp3", C4: "C4.mp3", C5: "C5.mp3", C6: "C6.mp3",
+                "D#2": "Ds2.mp3", "D#3": "Ds3.mp3", "D#4": "Ds4.mp3", "D#5": "Ds5.mp3",
+                "F#2": "Fs2.mp3", "F#3": "Fs3.mp3", "F#4": "Fs4.mp3", "F#5": "Fs5.mp3",
+            },
+            baseUrl: "https://tonejs.github.io/audio/salamander/",
+            release: 1.5,
+            onload: () => { pianoReady = true; }
+        }).toDestination();
+
+        // Fallback synth while samples load
+        const fallbackSynth = new Tone.Synth({
             oscillator: { type: 'triangle8' },
             envelope: { attack: 0.005, decay: 0.3, sustain: 0.2, release: 1.2 }
         }).toDestination();
-        const reverb = new Tone.Reverb({ decay: 1.5, wet: 0.2 }).toDestination();
-        synth.connect(reverb);
+
+        function playNote(note, duration, time) {
+            const inst = pianoReady ? piano : fallbackSynth;
+            inst.triggerAttackRelease(note, duration, time);
+        }
 
         const notepadStrip = document.getElementById('notepad-strip');
         const viewLetterMode = document.getElementById('letter-mode');
@@ -406,7 +424,7 @@
                 const fullNote = letter + currentAccidental;
                 const vexPitch = `${fullNote.toLowerCase()}/${currentOctave}`;
                 pushNote(vexPitch, fullNote);
-                synth.triggerAttackRelease(pitchToTone(vexPitch), "8n");
+                playNote(pitchToTone(vexPitch), "8n");
                 // Flash highlight
                 btn.classList.add('pressed');
                 setTimeout(() => btn.classList.remove('pressed'), 150);
@@ -463,7 +481,7 @@
                     e.preventDefault();
                     const vexPitch = `${noteName.toLowerCase()}/${octave}`;
                     pushNote(vexPitch, noteName);
-                    synth.triggerAttackRelease(pitchToTone(vexPitch), "8n");
+                    playNote(pitchToTone(vexPitch), "8n");
                 };
                 key.addEventListener('mousedown', keyHandler);
                 key.addEventListener('touchstart', (e) => { e.preventDefault(); keyHandler(e); });
@@ -651,7 +669,7 @@
                 if(n.duration==='w'){ dur="1n"; timeAdd=2.0;}
                 if(n.duration==='h'){ dur="2n"; timeAdd=1.0;}
                 if(n.duration==='8'){ dur="8n"; timeAdd=0.25;}
-                if (!n.isRest) synth.triggerAttackRelease(pitchToTone(n.pitch), dur, timeAcc);
+                if (!n.isRest) playNote(pitchToTone(n.pitch), dur, timeAcc);
                 timeAcc += timeAdd;
             });
         });
