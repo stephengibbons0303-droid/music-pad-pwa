@@ -1,22 +1,35 @@
-const CACHE_NAME = 'music-notepad-v1';
+const CACHE_NAME = 'music-notepad-v2';
 const urlsToCache = [
   './index.html',
   './manifest.json',
-  // Note: To make the app work completely offline (e.g., in a car), 
-  // you would eventually need to download the VexFlow and Tone.js 
-  // files to your folder and list them here instead of using the web CDNs.
 ];
 
 self.addEventListener('install', event => {
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => cache.addAll(urlsToCache))
   );
 });
 
+self.addEventListener('activate', event => {
+  event.waitUntil(
+    caches.keys().then(names =>
+      Promise.all(
+        names.filter(name => name !== CACHE_NAME).map(name => caches.delete(name))
+      )
+    ).then(() => self.clients.claim())
+  );
+});
+
 self.addEventListener('fetch', event => {
   event.respondWith(
-    caches.match(event.request)
-      .then(response => response || fetch(event.request))
+    fetch(event.request)
+      .then(response => {
+        const clone = response.clone();
+        caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+        return response;
+      })
+      .catch(() => caches.match(event.request))
   );
 });
