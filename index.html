@@ -167,7 +167,7 @@
 
         /* Piano Mode */
         #piano-mode {
-            display: flex; height: 90px; position: relative;
+            display: flex; height: 160px; position: relative;
             background: #1A1A2E; padding: 5px; border-radius: 14px;
             box-shadow: inset 0 2px 6px rgba(0,0,0,0.4);
         }
@@ -242,7 +242,7 @@
         <div id="header-actions">
             <button class="hdr-btn" id="btn-songs">My Songs</button>
             <button class="hdr-btn" id="btn-play-header">&#9654;</button>
-            <button class="hdr-btn" id="btn-new">+</button>
+            <button class="hdr-btn" id="btn-new">&#128465;</button>
         </div>
     </div>
 
@@ -568,13 +568,17 @@
             return closest ? closest.getAttribute('id') : null;
         }
 
-        const handleCanvasTap = (e) => {
-            if (e.target.closest('#radial-menu')) return;
-            const clientX = e.clientX ?? e.changedTouches?.[0]?.clientX ?? 0;
-            const clientY = e.clientY ?? e.changedTouches?.[0]?.clientY ?? 0;
-            let noteId = findNoteId(e.target) || findNearestNote(clientX);
+        const handleCanvasTap = (clientX, clientY, e) => {
+            // Use elementFromPoint for reliable hit detection on touch
+            const targetEl = document.elementFromPoint(clientX, clientY);
+            if (targetEl && targetEl.closest('#radial-menu')) return;
+
+            let noteId = null;
+            if (targetEl) noteId = findNoteId(targetEl);
+            if (!noteId) noteId = findNearestNote(clientX);
+
             if (noteId) {
-                e.preventDefault(); e.stopPropagation();
+                if (e) { e.preventDefault(); e.stopPropagation(); }
                 selectedNoteId = noteId;
                 radialMenu.style.left = clientX + 'px';
                 radialMenu.style.top = clientY + 'px';
@@ -584,11 +588,28 @@
                 selectedNoteId = null;
             }
         };
-        canvasDiv.addEventListener('click', handleCanvasTap);
-        canvasDiv.addEventListener('touchend', (e) => { handleCanvasTap(e); });
+
+        canvasDiv.addEventListener('click', (e) => {
+            handleCanvasTap(e.clientX, e.clientY, e);
+        });
+        canvasDiv.addEventListener('touchend', (e) => {
+            const touch = e.changedTouches[0];
+            if (touch) {
+                e.preventDefault();
+                handleCanvasTap(touch.clientX, touch.clientY, e);
+            }
+        });
 
         document.addEventListener('click', (e) => {
             if (!e.target.closest('#radial-menu') && !e.target.closest('#vexflow-canvas')) {
+                radialMenu.classList.add('hidden'); selectedNoteId = null;
+            }
+        });
+        document.addEventListener('touchend', (e) => {
+            const touch = e.changedTouches[0];
+            if (!touch) return;
+            const el = document.elementFromPoint(touch.clientX, touch.clientY);
+            if (el && !el.closest('#radial-menu') && !el.closest('#vexflow-canvas')) {
                 radialMenu.classList.add('hidden'); selectedNoteId = null;
             }
         });
