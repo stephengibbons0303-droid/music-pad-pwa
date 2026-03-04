@@ -25,14 +25,15 @@
         #vexflow-canvas { flex-grow: 1; width: 100%; display: flex; justify-content: center; overflow-x: auto; overflow-y: hidden; }
 
         /* --- RADIAL MENU --- */
-        #radial-menu { position: absolute; width: 200px; height: 200px; transform: translate(-50%, -50%); border-radius: 50%; z-index: 100; }
-        .radial-btn { position: absolute; width: 60px; height: 60px; background: #2196F3; color: white; border-radius: 50%; text-align: center; line-height: 60px; font-size: 16px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
-        .radial-btn:active { transform: scale(0.95); }
-        #rad-whole { top: 0; left: 70px; }
-        #rad-half { top: 70px; right: 0; }
-        #rad-quarter { bottom: 0; left: 70px; }
-        #rad-eighth { top: 70px; left: 0; }
-        #rad-center { top: 70px; left: 70px; background: #ff5722; font-size: 14px; }
+        #radial-menu { position: fixed; width: 240px; height: 240px; transform: translate(-50%, -50%); z-index: 100; pointer-events: none; }
+        .radial-btn { position: absolute; width: 64px; height: 64px; background: #2196F3; color: white; border-radius: 50%; text-align: center; line-height: 64px; font-size: 18px; font-weight: bold; box-shadow: 0 4px 8px rgba(0,0,0,0.4); pointer-events: auto; -webkit-tap-highlight-color: transparent; }
+        .radial-btn:active { transform: scale(0.9); background: #1565C0; }
+        #rad-whole { top: 0; left: 88px; }
+        #rad-half { top: 88px; right: 0; }
+        #rad-quarter { bottom: 0; left: 88px; }
+        #rad-eighth { top: 88px; left: 0; }
+        #rad-delete { top: 0; left: 0; background: #f44336; font-size: 14px; }
+        #rad-center { top: 88px; left: 88px; background: #ff5722; font-size: 14px; }
 
         /* --- MIDDLE ZONE: NOTEPAD (8%) --- */
         #middle-zone { flex: 0 0 8%; display: flex; align-items: center; justify-content: center; padding: 5px 10px; background: #e3f2fd; border-bottom: 2px solid #ddd; }
@@ -105,6 +106,7 @@
             <div class="radial-btn" id="rad-half">1/2</div>
             <div class="radial-btn" id="rad-quarter">1/4</div>
             <div class="radial-btn" id="rad-eighth">1/8</div>
+            <div class="radial-btn" id="rad-delete">DEL</div>
             <div class="radial-btn" id="rad-center">Rest</div>
         </div>
     </div>
@@ -180,7 +182,14 @@
         let currentOctave = 4;
         let currentAccidental = ''; // '', '#', or 'b'
         let masterTune = [];
-        const synth = new Tone.Synth().toDestination();
+
+        // Piano-like synth with warm tone and natural decay
+        const synth = new Tone.Synth({
+            oscillator: { type: 'triangle8' },
+            envelope: { attack: 0.005, decay: 0.3, sustain: 0.2, release: 1.2 }
+        }).toDestination();
+        const reverb = new Tone.Reverb({ decay: 1.5, wet: 0.2 }).toDestination();
+        synth.connect(reverb);
 
         const notepadInput = document.getElementById('notepad-input');
         const viewLetterMode = document.getElementById('letter-mode');
@@ -399,22 +408,69 @@
         const radialMenu = document.getElementById('radial-menu');
         let selectedNoteId = null;
 
-        const handleCanvasClick = (e) => {
-            const clickedNote = e.target.closest('[id^="note-"]');
-            if (clickedNote) {
-                selectedNoteId = clickedNote.id;
-                const rect = canvasDiv.getBoundingClientRect();
-                const x = (e.clientX || e.touches?.[0]?.clientX || 0);
-                const y = (e.clientY || e.touches?.[0]?.clientY || 0);
-                radialMenu.style.left = x + 'px';
-                radialMenu.style.top = y + 'px';
+        // Find which note was tapped by walking up the SVG element tree
+        function findNoteId(el) {
+            while (el && el !== canvasDiv) {
+                const id = el.getAttribute('id');
+                if (id && id.startsWith('note-')) return id;
+                // Also check VexFlow's data attributes
+                const classes = el.getAttribute('class') || '';
+                if (classes.includes('vf-stavenote')) {
+                    const innerEl = el.querySelector('[id^="note-"]');
+                    if (innerEl) return innerEl.getAttribute('id');
+                }
+                el = el.parentElement;
+            }
+            return null;
+        }
+
+        // Find closest note by horizontal position if direct hit missed
+        function findNearestNote(clientX) {
+            const svgEl = canvasDiv.querySelector('svg');
+            if (!svgEl) return null;
+            const noteEls = svgEl.querySelectorAll('[id^="note-"]');
+            let closest = null, closestDist = 40; // 40px tolerance
+            noteEls.forEach(el => {
+                const rect = el.getBoundingClientRect();
+                const centerX = rect.left + rect.width / 2;
+                const dist = Math.abs(clientX - centerX);
+                if (dist < closestDist) { closestDist = dist; closest = el; }
+            });
+            return closest ? closest.getAttribute('id') : null;
+        }
+
+        const handleCanvasTap = (e) => {
+            // Don't interfere with radial menu buttons
+            if (e.target.closest('#radial-menu')) return;
+
+            const clientX = e.clientX ?? e.changedTouches?.[0]?.clientX ?? 0;
+            const clientY = e.clientY ?? e.changedTouches?.[0]?.clientY ?? 0;
+
+            // Try direct hit first, then nearest note
+            let noteId = findNoteId(e.target) || findNearestNote(clientX);
+
+            if (noteId) {
+                e.preventDefault();
+                e.stopPropagation();
+                selectedNoteId = noteId;
+                radialMenu.style.left = clientX + 'px';
+                radialMenu.style.top = clientY + 'px';
                 radialMenu.classList.remove('hidden');
             } else {
                 radialMenu.classList.add('hidden');
                 selectedNoteId = null;
             }
         };
-        canvasDiv.addEventListener('click', handleCanvasClick);
+        canvasDiv.addEventListener('click', handleCanvasTap);
+        canvasDiv.addEventListener('touchend', (e) => { handleCanvasTap(e); });
+
+        // Close radial menu when tapping elsewhere
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('#radial-menu') && !e.target.closest('#vexflow-canvas')) {
+                radialMenu.classList.add('hidden');
+                selectedNoteId = null;
+            }
+        });
 
         const updateData = (modFunc) => {
             if (!selectedNoteId) return;
@@ -426,11 +482,26 @@
             selectedNoteId = null;
         };
 
-        document.getElementById('rad-whole').addEventListener('click', () => updateData(i => masterTune[i].duration = 'w'));
-        document.getElementById('rad-half').addEventListener('click', () => updateData(i => masterTune[i].duration = 'h'));
-        document.getElementById('rad-quarter').addEventListener('click', () => updateData(i => masterTune[i].duration = 'q'));
-        document.getElementById('rad-eighth').addEventListener('click', () => updateData(i => masterTune[i].duration = '8'));
-        document.getElementById('rad-center').addEventListener('click', () => updateData(i => masterTune[i].isRest = !masterTune[i].isRest));
+        const addRadialHandler = (id, fn) => {
+            const el = document.getElementById(id);
+            el.addEventListener('click', (e) => { e.stopPropagation(); fn(); });
+            el.addEventListener('touchend', (e) => { e.preventDefault(); e.stopPropagation(); fn(); });
+        };
+
+        addRadialHandler('rad-whole', () => updateData(i => masterTune[i].duration = 'w'));
+        addRadialHandler('rad-half', () => updateData(i => masterTune[i].duration = 'h'));
+        addRadialHandler('rad-quarter', () => updateData(i => masterTune[i].duration = 'q'));
+        addRadialHandler('rad-eighth', () => updateData(i => masterTune[i].duration = '8'));
+        addRadialHandler('rad-center', () => updateData(i => masterTune[i].isRest = !masterTune[i].isRest));
+        addRadialHandler('rad-delete', () => {
+            if (!selectedNoteId) return;
+            const idx = masterTune.findIndex(n => n.id === selectedNoteId);
+            if (idx !== -1) masterTune.splice(idx, 1);
+            renderNotation();
+            updateNotepad();
+            radialMenu.classList.add('hidden');
+            selectedNoteId = null;
+        });
 
         // --- 6. TONE.JS AUDIO ---
         document.getElementById('btn-play').addEventListener('click', async () => {
