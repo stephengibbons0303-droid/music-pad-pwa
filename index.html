@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Musical Notepad PWA</title>
+    <link rel="manifest" href="manifest.json">
+    
+    <script src="https://cdn.jsdelivr.net/npm/vexflow/build/cjs/vexflow.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+
+    <style>
+        /* --- GLOBAL RESETS --- */
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: sans-serif; user-select: none; }
+        body { display: flex; flex-direction: column; height: 100vh; overflow: hidden; background-color: #f4f4f9; }
+        button { cursor: pointer; border: none; border-radius: 8px; font-weight: bold; }
+        .hidden { display: none !important; }
+
+        /* --- TOP ZONE: CANVAS & CONTROLS (40%) --- */
+        #top-zone { flex: 0 0 40%; display: flex; flex-direction: column; position: relative; background: #ffffff; border-bottom: 2px solid #ddd; }
+        #header-controls { display: flex; justify-content: center; gap: 10px; padding: 10px; background: #eaeaea; }
+        #header-controls button { padding: 10px 20px; font-size: 16px; background: #ddd; }
+        #btn-notebook { font-size: 24px; padding: 5px 15px; background: #fff !important; border: 1px solid #ccc; }
+        #vexflow-canvas { flex-grow: 1; width: 100%; display: flex; justify-content: center; overflow: hidden; }
+
+        /* --- RADIAL MENU --- */
+        #radial-menu { position: absolute; width: 200px; height: 200px; transform: translate(-50%, -50%); border-radius: 50%; z-index: 100; }
+        .radial-btn { position: absolute; width: 60px; height: 60px; background: #2196F3; color: white; border-radius: 50%; text-align: center; line-height: 60px; font-size: 16px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+        .radial-btn:active { transform: scale(0.95); }
+        #rad-whole { top: 0; left: 70px; }
+        #rad-half { top: 70px; right: 0; }
+        #rad-quarter { bottom: 0; left: 70px; }
+        #rad-eighth { top: 70px; left: 0; }
+        #rad-center { top: 70px; left: 70px; background: #ff5722; font-size: 14px; }
+
+        /* --- MIDDLE ZONE: NOTEPAD (10%) --- */
+        #middle-zone { flex: 0 0 10%; display: flex; align-items: center; justify-content: center; padding: 10px; background: #e3f2fd; border-bottom: 2px solid #ddd; }
+        #notepad-input { width: 90%; height: 100%; font-size: 24px; padding: 10px; border: 2px solid #ccc; border-radius: 8px; text-align: center; letter-spacing: 2px; }
+
+        /* --- BOTTOM ZONE: INPUT CONTROLS (50%) --- */
+        #bottom-zone { flex: 0 0 50%; display: flex; flex-direction: column; padding: 10px; }
+        #input-toggle { display: flex; justify-content: center; margin-bottom: 10px; gap: 10px; }
+        #input-toggle button { padding: 10px 30px; background: #ccc; font-size: 18px; }
+
+        /* Letter Mode */
+        #letter-mode { display: flex; flex-grow: 1; gap: 15px; }
+        #octave-controls { display: flex; flex-direction: column; justify-content: space-between; flex: 0 0 80px; }
+        #octave-controls button { flex: 1; margin: 5px 0; font-size: 24px; background: #bbb; }
+        #octave-display { text-align: center; font-size: 32px; font-weight: bold; line-height: 60px; }
+        #letter-buttons { display: flex; flex-grow: 1; gap: 10px; }
+        .letter-btn { flex: 1; font-size: 40px; background: #4CAF50; color: white; border-radius: 12px; box-shadow: 0 6px #388E3C; }
+        .letter-btn:active { transform: translateY(4px); box-shadow: 0 2px #388E3C; }
+
+        /* Piano Mode */
+        #piano-mode { display: flex; flex-grow: 1; position: relative; background: #333; padding: 5px; border-radius: 8px; }
+        .white-key { flex: 1; background: white; margin: 1px; border: 1px solid #ccc; border-radius: 0 0 8px 8px; position: relative; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 10px; font-size: 14px; font-weight: bold; color: #888; }
+        .black-key { position: absolute; width: 3%; height: 60%; background: #222; border-radius: 0 0 6px 6px; z-index: 2; transform: translateX(-50%); display: flex; align-items: flex-end; justify-content: center; padding-bottom: 5px; color: white; font-size: 10px; }
+        .white-key:active { background: #e0e0e0; }
+        .black-key:active { background: #000; }
+        .label-hidden .key-label { display: none; }
+
+        /* --- NOTEBOOK OVERLAY --- */
+        #notebook-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0, 0, 0, 0.6); display: flex; justify-content: center; align-items: center; z-index: 1000; }
+        @keyframes openBook { 0% { transform: scale(0.5); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+        #notebook-container { width: 80%; max-width: 800px; height: 60vh; min-height: 300px; background: #f4eade; border-radius: 15px; display: flex; position: relative; box-shadow: 0 20px 40px rgba(0,0,0,0.5); animation: openBook 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        #btn-close-notebook { position: absolute; top: -15px; right: -15px; width: 40px; height: 40px; border-radius: 50%; background: #ff5252; color: white; font-size: 20px; z-index: 10; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+        .notebook-page { flex: 1; padding: 30px; display: flex; flex-direction: column; }
+        .left-page { border-right: 2px solid #ccc; box-shadow: inset -10px 0 20px rgba(0,0,0,0.05); }
+        .right-page { box-shadow: inset 10px 0 20px rgba(0,0,0,0.05); }
+        .notebook-page h2 { font-family: 'Comic Sans MS', cursive, sans-serif; margin-bottom: 15px; color: #333; }
+        .save-row { display: flex; gap: 10px; margin-top: 15px; }
+        #save-name-input { flex-grow: 1; padding: 10px; font-size: 18px; border: 2px solid #aaa; border-radius: 8px; user-select: text;}
+        #btn-do-save { background: #4CAF50; color: white; padding: 10px 20px; font-size: 18px; }
+        #load-list-container { flex-grow: 1; background: white; border: 2px solid #ccc; border-radius: 8px; margin-bottom: 15px; overflow-y: auto; }
+        #saved-songs-list { list-style: none; padding: 0; margin: 0; }
+        #saved-songs-list li { padding: 15px; border-bottom: 1px solid #eee; font-size: 18px; cursor: pointer; }
+        #saved-songs-list li.selected { background: #bbdefb; font-weight: bold; }
+        #btn-do-load { background: #2196F3; color: white; padding: 15px; font-size: 18px; }
+        #btn-do-load:disabled { background: #ccc; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+
+    <div id="top-zone">
+        <div id="header-controls">
+            <button id="btn-play">▶ Play</button>
+            <button id="btn-clear">🗑 Clear</button>
+            <button id="btn-notebook" title="Save / Load">📔🎵</button>
+        </div>
+        <div id="vexflow-canvas"></div>
+        <div id="radial-menu" class="hidden">
+            <div class="radial-btn" id="rad-whole">1</div>
+            <div class="radial-btn" id="rad-half">1/2</div>
+            <div class="radial-btn" id="rad-quarter">1/4</div>
+            <div class="radial-btn" id="rad-eighth">1/8</div>
+            <div class="radial-btn" id="rad-center">Rest</div>
+        </div>
+    </div>
+
+    <div id="middle-zone">
+        <input type="text" id="notepad-input" placeholder="Tap notes to begin..." readonly>
+    </div>
+
+    <div id="bottom-zone">
+        <div id="input-toggle">
+            <button id="toggle-letters">Letters</button>
+            <button id="toggle-piano">Piano</button>
+            <button onclick="document.getElementById('piano-mode').classList.toggle('label-hidden')">Toggle Labels</button>
+        </div>
+
+        <div id="letter-mode">
+            <div id="octave-controls">
+                <button id="oct-up">▲</button>
+                <div id="octave-display">4</div>
+                <button id="oct-down">▼</button>
+            </div>
+            <div id="letter-buttons">
+                <button class="letter-btn">C</button>
+                <button class="letter-btn">D</button>
+                <button class="letter-btn">E</button>
+                <button class="letter-btn">F</button>
+                <button class="letter-btn">G</button>
+                <button class="letter-btn">A</button>
+                <button class="letter-btn">B</button>
+            </div>
+        </div>
+
+        <div id="piano-mode" class="hidden"></div>
+    </div>
+
+    <div id="notebook-overlay" class="hidden">
+        <div id="notebook-container">
+            <button id="btn-close-notebook">✖</button>
+            <div class="notebook-page left-page">
+                <h2>Save Tune</h2>
+                <p>Let's give your new piece of music a name:</p>
+                <div class="save-row">
+                    <input type="text" id="save-name-input" placeholder="My Song Name">
+                    <button id="btn-do-save">Save</button>
+                </div>
+                <p id="save-message" class="hidden" style="color: green; margin-top: 10px; font-weight: bold;">Saved!</p>
+            </div>
+            <div class="notebook-page right-page">
+                <h2>Load Tune</h2>
+                <div id="load-list-container">
+                    <ul id="saved-songs-list"></ul>
+                </div>
+                <button id="btn-do-load" disabled>Load Selected</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js').catch(err => console.log('SW setup skipped for local testing.'));
+            });
+        }
+    </script>
+
+    <script>
+        // --- 1. STATE & DOM ---
+        let currentOctave = 4;
+        let masterTune = [];
+        const synth = new Tone.Synth().toDestination();
+        
+        const notepadInput = document.getElementById('notepad-input');
+        const viewLetterMode = document.getElementById('letter-mode');
+        const viewPianoMode = document.getElementById('piano-mode');
+        const octaveDisplay = document.getElementById('octave-display');
+
+        // Toggle Views
+        document.getElementById('toggle-letters').addEventListener('click', () => { viewLetterMode.classList.remove('hidden'); viewPianoMode.classList.add('hidden'); });
+        document.getElementById('toggle-piano').addEventListener('click', () => { viewPianoMode.classList.remove('hidden'); viewLetterMode.classList.add('hidden'); });
+
+        // Octave Controls
+        document.getElementById('oct-up').addEventListener('click', () => { if(currentOctave < 6) { currentOctave++; octaveDisplay.textContent = currentOctave; } });
+        document.getElementById('oct-down').addEventListener('click', () => { if(currentOctave > 3) { currentOctave--; octaveDisplay.textContent = currentOctave; } });
+
+        // Clear Canvas
+        document.getElementById('btn-clear').addEventListener('click', () => { masterTune = []; updateNotepad(); renderNotation(); });
+
+        // --- 2. INPUT LOGIC ---
+        function pushNote(pitchString, labelText) {
+            masterTune.push({
+                id: `note-${masterTune.length}`, 
+                pitch: pitchString, 
+                duration: "q", 
+                isRest: false, 
+                label: labelText 
+            });
+            updateNotepad();
+            renderNotation();
+        }
+
+        // Letter Buttons
+        document.querySelectorAll('.letter-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const letter = e.target.textContent;
+                pushNote(`${letter.toLowerCase()}/${currentOctave}`, letter);
+                synth.triggerAttackRelease(letter + currentOctave, "8n");
+            });
+        });
+
+        function updateNotepad() {
+            notepadInput.value = masterTune.map(n => n.isRest ? `(Rest)` : `${n.label}${n.pitch.split('/')[1]}`).join(' ');
+            notepadInput.scrollLeft = notepadInput.scrollWidth;
+        }
+
+        // --- 3. PIANO GENERATOR ---
+        const notesOrder = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+        function buildKeyboard(startNote, endNote) {
+            const container = document.getElementById('piano-mode');
+            container.innerHTML = '';
+            const startMidi = notesOrder.indexOf(startNote.pitch) + (startNote.octave * 12);
+            const endMidi = notesOrder.indexOf(endNote.pitch) + (endNote.octave * 12);
+            let whiteKeyCount = 0;
+
+            for (let i = startMidi; i <= endMidi; i++) {
+                const noteName = notesOrder[i % 12];
+                const octave = Math.floor(i / 12);
+                const isBlack = noteName.includes('#');
+                
+                const key = document.createElement('div');
+                key.className = isBlack ? 'black-key' : 'white-key';
+                
+                const label = document.createElement('span');
+                label.className = 'key-label';
+                label.textContent = `${noteName}${octave}`;
+                key.appendChild(label);
+
+                if (isBlack) {
+                    key.style.left = `${(whiteKeyCount * (100 / 19))} %`;
+                    container.appendChild(key);
+                } else {
+                    container.appendChild(key);
+                    whiteKeyCount++;
+                }
+
+                key.addEventListener('mousedown', () => {
+                    pushNote(`${noteName.toLowerCase().replace('#', '#')}/${octave}`, noteName);
+                    synth.triggerAttackRelease(noteName.replace('#', 's') + octave, "8n");
+                });
+            }
+        }
+        buildKeyboard({pitch: 'F', octave: 3}, {pitch: 'C', octave: 6});
+
+        // --- 4. VEXFLOW ENGINE ---
+        const VF = Vex.Flow;
+        const canvasDiv = document.getElementById("vexflow-canvas");
+        const renderer = new VF.Renderer(canvasDiv, VF.Renderer.Backends.SVG);
+        renderer.resize(800, 250);
+        const context = renderer.getContext();
+
+        function renderNotation() {
+            context.clear(); 
+            const topStaff = new VF.Stave(10, 20, 780).addClef("treble");
+            const bottomStaff = new VF.Stave(10, 120, 780).addClef("bass");
+            
+            topStaff.setContext(context).draw();
+            bottomStaff.setContext(context).draw();
+            new VF.StaveConnector(topStaff, bottomStaff).setType(VF.StaveConnector.type.BRACE).setContext(context).draw();
+            new VF.StaveConnector(topStaff, bottomStaff).setType(VF.StaveConnector.type.SINGLE_LEFT).setContext(context).draw();
+
+            if (masterTune.length === 0) return; 
+
+            let trebleNotes = [], bassNotes = [];
+
+            masterTune.forEach(n => {
+                const octave = parseInt(n.pitch.split('/')[1]);
+                const isBass = octave < 4;
+
+                let vfNote = new VF.StaveNote({ keys: [n.pitch], duration: n.duration + (n.isRest ? "r" : ""), clef: isBass ? "bass" : "treble" });
+                if (!n.isRest) vfNote.addModifier(new VF.Annotation(n.label).setVerticalJustification(VF.Annotation.VerticalJustify.BOTTOM), 0);
+                vfNote.setAttribute("id", n.id);
+
+                let ghostRest = new VF.StaveNote({ keys: [isBass ? "b/4" : "d/3"], duration: n.duration + "r", clef: isBass ? "treble" : "bass" });
+                ghostRest.setStyle({ fillStyle: "transparent", strokeStyle: "transparent" });
+
+                if (isBass) { bassNotes.push(vfNote); trebleNotes.push(ghostRest); } 
+                else { trebleNotes.push(vfNote); bassNotes.push(ghostRest); }
+            });
+
+            const trebleVoice = new VF.Voice({ num_beats: 1000, beat_value: 4 }).setStrict(false).addTickables(trebleNotes);
+            const bassVoice = new VF.Voice({ num_beats: 1000, beat_value: 4 }).setStrict(false).addTickables(bassNotes);
+
+            new VF.Formatter().joinVoices([trebleVoice, bassVoice]).format([trebleVoice, bassVoice], 700);
+            trebleVoice.draw(context, topStaff);
+            bassVoice.draw(context, bottomStaff);
+        }
+        renderNotation();
+
+        // --- 5. RADIAL MENU INTERACTION ---
+        const radialMenu = document.getElementById('radial-menu');
+        let selectedNoteId = null;
+
+        canvasDiv.addEventListener('click', (e) => {
+            const clickedNote = e.target.closest('[id^="note-"]');
+            if (clickedNote) {
+                selectedNoteId = clickedNote.id;
+                radialMenu.style.left = e.clientX + 'px';
+                radialMenu.style.top = e.clientY + 'px';
+                radialMenu.classList.remove('hidden');
+            } else {
+                radialMenu.classList.add('hidden');
+                selectedNoteId = null;
+            }
+        });
+
+        const updateData = (modFunc) => {
+            if (!selectedNoteId) return;
+            const idx = masterTune.findIndex(n => n.id === selectedNoteId);
+            if (idx !== -1) modFunc(idx);
+            renderNotation();
+            updateNotepad();
+            radialMenu.classList.add('hidden');
+            selectedNoteId = null;
+        };
+
+        document.getElementById('rad-whole').addEventListener('click', () => updateData(i => masterTune[i].duration = 'w'));
+        document.getElementById('rad-half').addEventListener('click', () => updateData(i => masterTune[i].duration = 'h'));
+        document.getElementById('rad-quarter').addEventListener('click', () => updateData(i => masterTune[i].duration = 'q'));
+        document.getElementById('rad-eighth').addEventListener('click', () => updateData(i => masterTune[i].duration = '8'));
+        document.getElementById('rad-center').addEventListener('click', () => updateData(i => masterTune[i].isRest = !masterTune[i].isRest));
+
+        // --- 6. TONE.JS AUDIO ---
+        document.getElementById('btn-play').addEventListener('click', async () => {
+            await Tone.start();
+            if (masterTune.length === 0) return;
+            let timeAcc = Tone.now() + 0.1; 
+
+            masterTune.forEach(n => {
+                let dur = "4n", timeAdd = 0.5;
+                if(n.duration==='w'){ dur="1n"; timeAdd=2.0;}
+                if(n.duration==='h'){ dur="2n"; timeAdd=1.0;}
+                if(n.duration==='8'){ dur="8n"; timeAdd=0.25;}
+
+                if (!n.isRest) {
+                    const p = n.pitch.split('/');
+                    synth.triggerAttackRelease(p[0].toUpperCase().replace('#','s') + p[1], dur, timeAcc);
+                }
+                timeAcc += timeAdd;
+            });
+        });
+
+        // --- 7. NOTEBOOK (SAVE/LOAD) ---
+        const overlay = document.getElementById('notebook-overlay');
+        const songList = document.getElementById('saved-songs-list');
+        const saveMsg = document.getElementById('save-message');
+        const loadBtn = document.getElementById('btn-do-load');
+        let selectedSong = null;
+
+        document.getElementById('btn-notebook').addEventListener('click', () => { refreshList(); overlay.classList.remove('hidden'); });
+        document.getElementById('btn-close-notebook').addEventListener('click', () => { overlay.classList.add('hidden'); saveMsg.classList.add('hidden'); });
+
+        document.getElementById('btn-do-save').addEventListener('click', () => {
+            const name = document.getElementById('save-name-input').value.trim();
+            if (!name) return;
+            localStorage.setItem('MusicPad_' + name, JSON.stringify(masterTune));
+            saveMsg.classList.remove('hidden');
+            setTimeout(() => saveMsg.classList.add('hidden'), 2000);
+            refreshList();
+        });
+
+        function refreshList() {
+            songList.innerHTML = ''; selectedSong = null; loadBtn.disabled = true;
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key.startsWith('MusicPad_')) {
+                    const li = document.createElement('li');
+                    li.textContent = key.replace('MusicPad_', '');
+                    li.addEventListener('click', () => {
+                        document.querySelectorAll('#saved-songs-list li').forEach(el => el.classList.remove('selected'));
+                        li.classList.add('selected');
+                        selectedSong = key; loadBtn.disabled = false;
+                    });
+                    songList.appendChild(li);
+                }
+            }
+        }
+
+        loadBtn.addEventListener('click', () => {
+            if (!selectedSong) return;
+            masterTune = JSON.parse(localStorage.getItem(selectedSong));
+            updateNotepad(); renderNotation();
+            overlay.classList.add('hidden');
+        });
+    </script>
+</body>
+</html>
